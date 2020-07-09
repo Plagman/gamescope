@@ -82,3 +82,5 @@ void wlserver_send_frame_done( struct wlr_surface *surf, const struct timespec *
 struct wlr_surface *wlserver_get_surface( long surfaceID );
 
 const char *wlserver_get_nested_display( void );
+
+void wlserver_draw( void );

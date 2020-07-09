@@ -1168,6 +1168,10 @@ paint_all(Display *dpy, MouseCursor *cursor)
 		drm_atomic_commit( &g_DRM, &composite, &pipeline );
 	}
 
+	wlserver_lock();
+	wlserver_draw();
+	wlserver_unlock();
+
 	gpuvis_trace_printf( "paint_all end_ctx=%llu\n", paintID );
 	gpuvis_trace_printf( "paint_all %i layers, composite %i\n", (int)composite.nLayerCount, bDoComposite );
 }

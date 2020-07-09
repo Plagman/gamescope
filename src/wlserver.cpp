@@ -23,8 +23,10 @@ extern "C" {
 #include <wlr/backend/headless.h>
 #include <wlr/backend/multi.h>
 #include <wlr/backend/libinput.h>
+#include <wlr/backend/wayland.h>
 #include <wlr/interfaces/wlr_pointer.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_matrix.h>
 #include <wlr/xwayland.h>
 #include <wlr/util/log.h>
 #undef static
@@ -74,6 +76,15 @@ void nudge_steamcompmgr(void)
 
 extern const struct wlr_surface_role xwayland_surface_role;
 
+static struct wlr_surface *last_surf;
+static struct wl_listener last_surf_destroy;
+
+static void last_surf_handle_destroy(struct wl_listener *listener, void *data)
+{
+	last_surf = NULL;
+	wl_list_remove(&last_surf_destroy.link);
+}
+
 void xwayland_surface_role_commit(struct wlr_surface *wlr_surface) {
 	assert(wlr_surface->role == &xwayland_surface_role);
 	
@@ -92,6 +103,13 @@ void xwayland_surface_role_commit(struct wlr_surface *wlr_surface) {
 	gpuvis_trace_printf( "xwayland_surface_role_commit wlr_surface %p\n", wlr_surface );
 
 	wayland_commit( wlr_surface, &dmabuf_attribs );
+
+	if (last_surf != NULL) {
+		wl_list_remove(&last_surf_destroy.link);
+	}
+	last_surf = wlr_surface;
+	wl_signal_add(&last_surf->events.destroy, &last_surf_destroy);
+	last_surf_destroy.notify = last_surf_handle_destroy;
 }
 
 static void xwayland_surface_role_precommit(struct wlr_surface *wlr_surface) {
@@ -404,17 +422,17 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 	assert( wlserver.wl_display && wlserver.wl_event_loop && wlserver.wlr.multi_backend );
 	assert( !bIsDRM || wlserver.wlr.session );
 
-	wlserver.wlr.headless_backend = wlr_headless_backend_create( wlserver.wl_display, NULL );
+	//wlserver.wlr.headless_backend = wlr_headless_backend_create( wlserver.wl_display, NULL );
+	wlserver.wlr.headless_backend = wlr_wl_backend_create( wlserver.wl_display, NULL, NULL );
 	if ( wlserver.wlr.headless_backend == NULL )
 	{
 		return 1;
 	}
 	wlr_multi_backend_add( wlserver.wlr.multi_backend, wlserver.wlr.headless_backend );
 	
-	wlserver.wlr.output = wlr_headless_add_output( wlserver.wlr.headless_backend, g_nNestedWidth, g_nNestedHeight );
-	wlr_output_set_custom_mode( wlserver.wlr.output, g_nNestedWidth, g_nNestedHeight, g_nNestedRefresh * 1000 );
-	
-	wlr_output_create_global( wlserver.wlr.output );
+	//wlserver.wlr.output = wlr_headless_add_output( wlserver.wlr.headless_backend, g_nNestedWidth, g_nNestedHeight );
+
+	wl_signal_add( &wlserver.wlr.multi_backend->events.new_input, &new_input_listener );
 	
 	if ( bIsDRM == True )
 	{
@@ -423,12 +441,10 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 		{
 			return 1;
 		}
-		wl_signal_add( &wlserver.wlr.libinput_backend->events.new_input, &new_input_listener );
 		wlr_multi_backend_add( wlserver.wlr.multi_backend, wlserver.wlr.libinput_backend );
 	}
-	else
+	else if ( wlr_backend_is_headless(wlserver.wlr.headless_backend) )
 	{
-		wl_signal_add( &wlserver.wlr.headless_backend->events.new_input, &new_input_listener );
 		wlr_headless_add_input_device( wlserver.wlr.headless_backend, WLR_INPUT_DEVICE_KEYBOARD );
 	}
 	
@@ -467,6 +483,11 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 		wl_display_destroy(wlserver.wl_display);
 		return 1;
 	}
+
+	wlserver.wlr.output = wlr_wl_output_create( wlserver.wlr.headless_backend );
+	wlr_output_set_custom_mode( wlserver.wlr.output, g_nNestedWidth, g_nNestedHeight, g_nNestedRefresh * 1000 );
+
+	wlr_output_create_global( wlserver.wlr.output );
 
 	return 0;
 }
@@ -626,4 +647,37 @@ struct wlr_surface *wlserver_get_surface( long surfaceID )
 const char *wlserver_get_nested_display( void )
 {
 	return wlserver.wlr.xwayland_server->display_name;
+}
+
+void wlserver_draw( void )
+{
+	struct wlr_output *output = wlserver.wlr.output;
+	struct wlr_renderer *renderer = wlr_backend_get_renderer(output->backend);
+
+	if (!wlr_output_attach_render(output, NULL)) {
+		return;
+	}
+
+	int width, height;
+	wlr_output_effective_resolution(output, &width, &height);
+	wlr_renderer_begin(renderer, width, height);
+
+	float color[4] = {0.3, 0.3, 0.3, 1.0};
+	wlr_renderer_clear(renderer, color);
+
+	if (last_surf && wlr_surface_get_texture(last_surf)) {
+		struct wlr_texture *tex = wlr_surface_get_texture(last_surf);
+		struct wlr_box box = {
+			.width = last_surf->current.width,
+			.height = last_surf->current.height,
+		};
+		float matrix[9];
+		wlr_matrix_project_box(matrix, &box, WL_OUTPUT_TRANSFORM_NORMAL, 0,
+			output->transform_matrix);
+
+		wlr_render_texture_with_matrix(renderer, tex, matrix, 1);
+	}
+
+	wlr_renderer_end(renderer);
+	wlr_output_commit(output);
 }
