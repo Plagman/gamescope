@@ -41,7 +41,7 @@ wayland_protos = dependency('wayland-protocols', version: '>=1.17')
 xkbcommon      = dependency('xkbcommon')
 math           = cc.find_library('m')
 thread_dep = dependency('threads')
-cap_dep = cc.find_library('cap')
+cap_dep = cc.find_library('cap', required: false)
 sdl_dep = dependency('SDL2')
 
 wlroots_proj = subproject('wlroots', required: false, default_options:
