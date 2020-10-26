@@ -83,6 +83,15 @@
 #define GPUVIS_TRACE_IMPLEMENTATION
 #include "gpuvis_trace_utils.h"
 
+#ifndef CLOCK_MONOTONIC_RAW
+#ifdef CLOCK_MONOTONIC_FAST
+// Try non-adjusted clocks on DragonFly and FreeBSD
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC_FAST
+#else
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
+#endif
+
 extern char **environ;
 
 typedef struct _ignore {
