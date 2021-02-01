@@ -398,6 +398,8 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, VkFormat format, cr
 	
 	if ( pDMA != nullptr )
 	{
+		// TODO: multi-planar DISTINCT DMA-BUFs support (see vkBindImageMemory2
+		// and VkBindImagePlaneMemoryInfo)
 		assert( pDMA->n_planes == 1 ||
 		        ( tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT && allFileDescriptorsEqual( pDMA ) ) );
 
