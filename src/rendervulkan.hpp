@@ -50,6 +50,7 @@ struct Composite_t
 
 extern "C" {
 #define static
+#include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/render/dmabuf.h>
 #include <wlr/render/interface.h>
 #undef static
@@ -61,6 +62,11 @@ extern "C" {
 struct VulkanRenderer_t
 {
 	struct wlr_renderer base;
+};
+
+struct VulkanWlrTexture_t
+{
+	struct wlr_texture base;
 };
 
 class CVulkanTexture

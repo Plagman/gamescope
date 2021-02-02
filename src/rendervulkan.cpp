@@ -2027,6 +2027,16 @@ int vulkan_get_texture_fence( VulkanTexture_t vulkanTex )
 	return pTex->m_FD;
 }
 
+static void texture_destroy( struct wlr_texture *wlr_texture )
+{
+	VulkanWlrTexture_t *tex = (VulkanWlrTexture_t *)wlr_texture;
+	delete tex;
+}
+
+static const struct wlr_texture_impl texture_impl = {
+	.destroy = texture_destroy,
+};
+
 static void renderer_begin( struct wlr_renderer *renderer, uint32_t width, uint32_t height )
 {
 	assert( 0 ); // unreachable
@@ -2086,6 +2096,33 @@ static struct wlr_texture *renderer_texture_from_pixels(
 	return NULL; // TODO
 }
 
+static bool renderer_init_wl_display( struct wlr_renderer *renderer,
+	struct wl_display *wl_display )
+{
+	if ( wlr_linux_dmabuf_v1_create( wl_display, renderer ) == nullptr )
+	{
+		return false;
+	}
+
+	return true;
+}
+
+static const struct wlr_drm_format_set *renderer_get_dmabuf_texture_formats(
+	struct wlr_renderer *wlr_renderer)
+{
+	return &sampledDRMFormats;
+}
+
+static struct wlr_texture *renderer_texture_from_dmabuf(
+	struct wlr_renderer *renderer, struct wlr_dmabuf_attributes *dmabuf)
+{
+	VulkanWlrTexture_t *tex = new VulkanWlrTexture_t();
+	wlr_texture_init( &tex->base, &texture_impl, dmabuf->width, dmabuf->height );
+	// TODO: check format/modifier
+	// TODO: try importing it into Vulkan
+	return &tex->base;
+}
+
 static const struct wlr_renderer_impl renderer_impl = {
 	.begin = renderer_begin,
 	.end = renderer_end,
@@ -2095,7 +2132,10 @@ static const struct wlr_renderer_impl renderer_impl = {
 	.render_quad_with_matrix = renderer_render_quad_with_matrix,
 	.render_ellipse_with_matrix = renderer_render_ellipse_with_matrix,
 	.get_shm_texture_formats = renderer_get_shm_texture_formats,
+	.get_dmabuf_texture_formats = renderer_get_dmabuf_texture_formats,
 	.texture_from_pixels = renderer_texture_from_pixels,
+	.texture_from_dmabuf = renderer_texture_from_dmabuf,
+	.init_wl_display = renderer_init_wl_display,
 };
 
 struct wlr_renderer *vulkan_renderer_create( void )
