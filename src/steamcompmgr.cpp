@@ -2803,12 +2803,6 @@ steamcompmgr_main (int argc, char **argv)
 	allDamage = None;
 	clipChanged = True;
 
-	if ( vulkan_init() != True )
-	{
-		fprintf (stderr, "Failed to initialize Vulkan device!\n");
-		exit( 1 );
-	}
-
 	vblank_init();
 
 	currentOutputWidth = g_nOutputWidth;

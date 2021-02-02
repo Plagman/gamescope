@@ -181,6 +181,12 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	if ( vulkan_init() != True )
+	{
+		fprintf( stderr, "Failed to initialize Vulkan\n" );
+		return 1;
+	}
+
 	// Prevent our clients from connecting to the parent compositor
 	unsetenv("WAYLAND_DISPLAY");
 
