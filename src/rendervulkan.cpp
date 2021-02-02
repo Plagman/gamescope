@@ -1958,3 +1958,81 @@ int vulkan_get_texture_fence( VulkanTexture_t vulkanTex )
 
 	return pTex->m_FD;
 }
+
+static void renderer_begin( struct wlr_renderer *renderer, uint32_t width, uint32_t height )
+{
+	assert( 0 ); // unreachable
+}
+
+static void renderer_end( struct wlr_renderer *renderer )
+{
+	assert( 0 ); // unreachable
+}
+
+static void renderer_clear(struct wlr_renderer *renderer, const float color[4])
+{
+	assert( 0 ); // unreachable
+}
+
+static void renderer_scissor(struct wlr_renderer *renderer, struct wlr_box *box)
+{
+	assert( 0 ); // unreachable
+}
+
+static bool renderer_render_subtexture_with_matrix(struct wlr_renderer *renderer,
+	struct wlr_texture *texture, const struct wlr_fbox *box,
+	const float matrix[9], float alpha)
+{
+	assert( 0 ); // unreachable
+}
+
+static void renderer_render_quad_with_matrix(struct wlr_renderer *renderer,
+	const float color[4], const float matrix[9])
+{
+	assert( 0 ); // unreachable
+}
+
+static void renderer_render_ellipse_with_matrix(struct wlr_renderer *renderer,
+	const float color[4], const float matrix[9])
+{
+	assert( 0 ); // unreachable
+}
+
+static const enum wl_shm_format shm_formats[] = {
+	WL_SHM_FORMAT_ARGB8888,
+	WL_SHM_FORMAT_XRGB8888,
+};
+
+static const enum wl_shm_format *renderer_get_shm_texture_formats(
+	struct wlr_renderer *renderer, size_t *len)
+{
+	*len = sizeof(shm_formats) / sizeof(shm_formats[0]);
+	return shm_formats;
+}
+
+static struct wlr_texture *renderer_texture_from_pixels(
+	struct wlr_renderer *renderer, enum wl_shm_format fmt,
+	uint32_t stride, uint32_t width,
+	uint32_t height, const void *data)
+{
+	return NULL; // TODO
+}
+
+static const struct wlr_renderer_impl renderer_impl = {
+	.begin = renderer_begin,
+	.end = renderer_end,
+	.clear = renderer_clear,
+	.scissor = renderer_scissor,
+	.render_subtexture_with_matrix = renderer_render_subtexture_with_matrix,
+	.render_quad_with_matrix = renderer_render_quad_with_matrix,
+	.render_ellipse_with_matrix = renderer_render_ellipse_with_matrix,
+	.get_shm_texture_formats = renderer_get_shm_texture_formats,
+	.texture_from_pixels = renderer_texture_from_pixels,
+};
+
+struct wlr_renderer *vulkan_renderer_create( void )
+{
+	VulkanRenderer_t *renderer = new VulkanRenderer_t();
+	wlr_renderer_init(&renderer->base, &renderer_impl);
+	return &renderer->base;
+}

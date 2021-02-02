@@ -469,10 +469,7 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 		wlr_headless_add_input_device( wlserver.wlr.headless_backend, WLR_INPUT_DEVICE_KEYBOARD );
 	}
 
-	wlserver.wlr.renderer = wlr_backend_get_renderer( wlserver.wlr.multi_backend );
-
-	assert(wlserver.wlr.renderer);
-
+	wlserver.wlr.renderer = vulkan_renderer_create();
 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.wl_display);
 
 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.wl_display, wlserver.wlr.renderer);
