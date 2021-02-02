@@ -1,6 +1,7 @@
 #define _GNU_SOURCE 1
 
 #include <assert.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -27,6 +28,7 @@ extern "C" {
 #include <wlr/backend/libinput.h>
 #include <wlr/backend/noop.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_drm.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_touch.h>
@@ -537,12 +539,14 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 
 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.wl_display);
 
+	wlr_drm_create(wlserver.wl_display, wlserver.wlr.renderer);
+
 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.wl_display, wlserver.wlr.renderer);
 
 	wl_signal_add( &wlserver.wlr.compositor->events.new_surface, &new_surface_listener );
 
 	create_gamescope_xwayland();
-	
+
 	struct wlr_xwayland_server_options xwayland_options = {
 		.lazy = false,
 		.enable_wm = false,
