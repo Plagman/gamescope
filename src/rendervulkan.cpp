@@ -146,7 +146,6 @@ struct {
 } s_DRMVKFormatTable[] = {
 	{ DRM_FORMAT_XRGB8888, VK_FORMAT_A8B8G8R8_UNORM_PACK32, true, false },
 	{ DRM_FORMAT_ARGB8888, VK_FORMAT_A8B8G8R8_UNORM_PACK32, true, true },
-	{ DRM_FORMAT_ARGB8888, VK_FORMAT_R8G8B8A8_UNORM, false, true }, // TODO: figure out why the cursor surface didn't like DRM_FORMAT_RGBA8888
 	{ DRM_FORMAT_INVALID, VK_FORMAT_UNDEFINED, false, false },
 };
 
