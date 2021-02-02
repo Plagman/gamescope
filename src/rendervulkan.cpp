@@ -117,6 +117,8 @@ std::vector< VulkanSamplerCacheEntry_t > g_vecVulkanSamplerCache;
 
 VulkanTexture_t g_emptyTex;
 
+static struct wlr_drm_format_set sampledDRMFormats = {};
+
 #define MAX_DEVICE_COUNT 8
 #define MAX_QUEUE_COUNT 8
 
@@ -581,6 +583,70 @@ CVulkanTexture::~CVulkanTexture( void )
 }
 
 
+void init_formats()
+{
+	for ( size_t i = 0; s_DRMVKFormatTable[i].DRMFormat != DRM_FORMAT_INVALID; i++ )
+	{
+		VkFormat format = s_DRMVKFormatTable[i].vkFormat;
+		uint32_t drmFormat = s_DRMVKFormatTable[i].DRMFormat;
+
+		// First, check whether the Vulkan format is supported
+		// TODO: check we can import both shm and DMA-BUFs
+		VkPhysicalDeviceImageFormatInfo2 imageFormatInfo = {};
+		imageFormatInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
+		imageFormatInfo.format = format;
+		imageFormatInfo.type = VK_IMAGE_TYPE_2D;
+		imageFormatInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageFormatInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageFormatInfo.flags = 0;
+		VkImageFormatProperties2 imageFormatProps = {};
+		imageFormatProps.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
+		VkResult res = vkGetPhysicalDeviceImageFormatProperties2( physicalDevice, &imageFormatInfo, &imageFormatProps );
+		if ( res == VK_ERROR_FORMAT_NOT_SUPPORTED )
+		{
+			continue;
+		}
+		else if ( res != VK_SUCCESS )
+		{
+			fprintf( stderr, "vkGetPhysicalDeviceImageFormatProperties2 failed for DRM format 0x%" PRIX32 "\n", drmFormat );
+			continue;
+		}
+
+		if ( !g_vulkanSupportsModifiers )
+		{
+			wlr_drm_format_set_add( &sampledDRMFormats, drmFormat, DRM_FORMAT_MOD_INVALID );
+			continue;
+		}
+
+		// Then, collect the list of modifiers supported for sampled usage
+		VkDrmFormatModifierPropertiesListEXT modifierPropList = {};
+		modifierPropList.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT;
+		VkFormatProperties2 formatProps = {};
+		formatProps.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+		formatProps.pNext = &modifierPropList;
+		vkGetPhysicalDeviceFormatProperties2( physicalDevice, format, &formatProps );
+
+		if ( modifierPropList.drmFormatModifierCount == 0 )
+		{
+			fprintf( stderr, "vkGetPhysicalDeviceFormatProperties2 returned zero modifiers for DRM format 0x%" PRIX32 "\n", drmFormat );
+			continue;
+		}
+
+		std::vector<VkDrmFormatModifierPropertiesEXT> modifierProps(modifierPropList.drmFormatModifierCount);
+		modifierPropList.pDrmFormatModifierProperties = modifierProps.data();
+		vkGetPhysicalDeviceFormatProperties2( physicalDevice, format, &formatProps );
+
+		for ( size_t j = 0; j < modifierProps.size(); j++ )
+		{
+			if ( ( modifierProps[j].drmFormatModifierTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT ) == 0 )
+			{
+				continue;
+			}
+			wlr_drm_format_set_add( &sampledDRMFormats, drmFormat, modifierProps[j].drmFormatModifier );
+		}
+	}
+}
+
 int init_device()
 {
 	uint32_t physicalDeviceCount = 0;
@@ -651,6 +717,8 @@ retry:
 		     VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) == 0 )
 			g_vulkanSupportsModifiers = true;
 	}
+
+	init_formats();
 
 	float queuePriorities = 1.0f;
 
