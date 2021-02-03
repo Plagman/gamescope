@@ -2030,12 +2030,22 @@ int vulkan_get_texture_fence( VulkanTexture_t vulkanTex )
 static void texture_destroy( struct wlr_texture *wlr_texture )
 {
 	VulkanWlrTexture_t *tex = (VulkanWlrTexture_t *)wlr_texture;
+	vulkan_free_texture(tex->tex);
 	delete tex;
 }
 
 static const struct wlr_texture_impl texture_impl = {
 	.destroy = texture_destroy,
 };
+
+VulkanTexture_t vulkan_texture_from_wlr( struct wlr_texture *wlr_texture )
+{
+	VulkanWlrTexture_t *tex = (VulkanWlrTexture_t *)wlr_texture;
+
+	CVulkanTexture *pTex = g_mapVulkanTextures[ tex->tex ];
+	pTex->nRefCount++;
+	return tex->tex;
+}
 
 static void renderer_begin( struct wlr_renderer *renderer, uint32_t width, uint32_t height )
 {
@@ -2118,8 +2128,12 @@ static struct wlr_texture *renderer_texture_from_dmabuf(
 {
 	VulkanWlrTexture_t *tex = new VulkanWlrTexture_t();
 	wlr_texture_init( &tex->base, &texture_impl, dmabuf->width, dmabuf->height );
-	// TODO: check format/modifier
-	// TODO: try importing it into Vulkan
+	tex->tex = vulkan_create_texture_from_dmabuf( dmabuf );
+	if ( tex->tex == 0 )
+	{
+		delete tex;
+		return nullptr;
+	}
 	return &tex->base;
 }
 
