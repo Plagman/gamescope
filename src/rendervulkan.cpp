@@ -119,6 +119,7 @@ std::vector< VulkanSamplerCacheEntry_t > g_vecVulkanSamplerCache;
 VulkanTexture_t g_emptyTex;
 
 static std::map< VkFormat, std::map< uint64_t, VkDrmFormatModifierPropertiesEXT > > DRMModifierProps = {};
+static std::vector< uint32_t > sampledShmFormats{};
 static struct wlr_drm_format_set sampledDRMFormats = {};
 
 #define MAX_DEVICE_COUNT 8
@@ -733,6 +734,8 @@ void init_formats()
 			fprintf( stderr, "vkGetPhysicalDeviceImageFormatProperties2 failed for DRM format 0x%" PRIX32 "\n", drmFormat );
 			continue;
 		}
+
+		sampledShmFormats.push_back( drmFormat );
 
 		if ( !g_vulkanSupportsModifiers )
 		{
@@ -2203,8 +2206,8 @@ static void renderer_render_quad_with_matrix( struct wlr_renderer *renderer, con
 static const uint32_t *renderer_get_shm_texture_formats( struct wlr_renderer *wlr_renderer, size_t *len
  )
 {
-	VulkanRenderer_t *renderer = (VulkanRenderer_t *) wlr_renderer;
-	return wlr_renderer_get_shm_texture_formats( renderer->parent, len );
+	*len = sampledShmFormats.size();
+	return sampledShmFormats.data();
 }
 
 static struct wlr_texture *renderer_texture_from_pixels( struct wlr_renderer *wlr_renderer, uint32_t shmFormat, uint32_t stride, uint32_t width, uint32_t height, const void *src )
