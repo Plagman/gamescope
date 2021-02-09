@@ -117,6 +117,7 @@ std::vector< VulkanSamplerCacheEntry_t > g_vecVulkanSamplerCache;
 
 VulkanTexture_t g_emptyTex;
 
+static std::vector<enum wl_shm_format> sampledShmFormats{};
 static struct wlr_drm_format_set sampledDRMFormats = {};
 
 #define MAX_DEVICE_COUNT 8
@@ -201,6 +202,19 @@ static inline bool DRMFormatHasAlpha( uint32_t nDRMFormat )
 	}
 	
 	return false;
+}
+
+static enum wl_shm_format DRMFormatToShm( uint32_t nDRMFormat )
+{
+	switch ( nDRMFormat )
+	{
+	case DRM_FORMAT_ARGB8888:
+		return WL_SHM_FORMAT_ARGB8888;
+	case DRM_FORMAT_XRGB8888:
+		return WL_SHM_FORMAT_XRGB8888;
+	default:
+		return (enum wl_shm_format)nDRMFormat; // all other formats match DRM
+	}
 }
 
 int32_t findMemoryType( VkMemoryPropertyFlags properties, uint32_t requiredTypeBits )
@@ -611,6 +625,8 @@ void init_formats()
 			fprintf( stderr, "vkGetPhysicalDeviceImageFormatProperties2 failed for DRM format 0x%" PRIX32 "\n", drmFormat );
 			continue;
 		}
+
+		sampledShmFormats.push_back( DRMFormatToShm( drmFormat ) );
 
 		if ( !g_vulkanSupportsModifiers )
 		{
@@ -2086,16 +2102,11 @@ static void renderer_render_ellipse_with_matrix(struct wlr_renderer *renderer,
 	assert( 0 ); // unreachable
 }
 
-static const enum wl_shm_format shm_formats[] = {
-	WL_SHM_FORMAT_ARGB8888,
-	WL_SHM_FORMAT_XRGB8888,
-};
-
 static const enum wl_shm_format *renderer_get_shm_texture_formats(
 	struct wlr_renderer *renderer, size_t *len)
 {
-	*len = sizeof(shm_formats) / sizeof(shm_formats[0]);
-	return shm_formats;
+	*len = sampledShmFormats.size();
+	return sampledShmFormats.data();
 }
 
 static struct wlr_texture *renderer_texture_from_pixels(
