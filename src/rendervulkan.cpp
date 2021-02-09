@@ -217,6 +217,19 @@ static enum wl_shm_format DRMFormatToShm( uint32_t nDRMFormat )
 	}
 }
 
+static uint32_t ShmFormatToDRM( enum wl_shm_format shmFormat )
+{
+	switch ( shmFormat )
+	{
+	case WL_SHM_FORMAT_ARGB8888:
+		return DRM_FORMAT_ARGB8888;
+	case WL_SHM_FORMAT_XRGB8888:
+		return DRM_FORMAT_XRGB8888;
+	default:
+		return (uint32_t)shmFormat; // all other formats match DRM
+	}
+}
+
 int32_t findMemoryType( VkMemoryPropertyFlags properties, uint32_t requiredTypeBits )
 {
 	for ( uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++ )
@@ -2110,11 +2123,108 @@ static const enum wl_shm_format *renderer_get_shm_texture_formats(
 }
 
 static struct wlr_texture *renderer_texture_from_pixels(
-	struct wlr_renderer *renderer, enum wl_shm_format fmt,
+	struct wlr_renderer *renderer, enum wl_shm_format shmFormat,
 	uint32_t stride, uint32_t width,
-	uint32_t height, const void *data)
+	uint32_t height, const void *src)
 {
-	return NULL; // TODO
+	uint32_t nDRMFormat = ShmFormatToDRM( shmFormat );
+	VkFormat format = DRMFormatToVulkan( nDRMFormat );
+
+	VkResult result;
+
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = stride * height;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	VkBuffer buffer;
+	result = vkCreateBuffer( device, &bufferCreateInfo, nullptr, &buffer );
+	if ( result != VK_SUCCESS )
+	{
+		return nullptr;
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+
+	int memTypeIndex =  findMemoryType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memRequirements.memoryTypeBits );
+	if ( memTypeIndex == -1 )
+	{
+		return nullptr;
+	}
+
+	VkMemoryAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = memTypeIndex;
+
+	VkDeviceMemory bufferMemory;
+	result = vkAllocateMemory( device, &allocInfo, nullptr, &bufferMemory);
+	if ( result != VK_SUCCESS )
+	{
+		return nullptr;
+	}
+
+	result = vkBindBufferMemory( device, buffer, bufferMemory, 0 );
+	if ( result != VK_SUCCESS )
+	{
+		return nullptr;
+	}
+
+	void *dst;
+	result = vkMapMemory( device, bufferMemory, 0, VK_WHOLE_SIZE, 0, &dst );
+	if ( result != VK_SUCCESS )
+	{
+		return nullptr;
+	}
+
+	memcpy( dst, src, stride * height );
+
+	vkUnmapMemory( device, bufferMemory );
+
+	CVulkanTexture *pTex = new CVulkanTexture();
+	CVulkanTexture::createFlags texCreateFlags = {};
+	//texCreateFlags.bFlippable = BIsNested() == false;
+	texCreateFlags.bTextureable = true;
+	texCreateFlags.bTransferDst = true;
+	if ( pTex->BInit( width, height, format, texCreateFlags ) == false )
+	{
+		delete pTex;
+		return nullptr;
+	}
+
+	VkCommandBuffer commandBuffer;
+	uint32_t handle = get_command_buffer( commandBuffer, nullptr );
+
+	VkBufferImageCopy region = {};
+	region.imageSubresource = {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.layerCount = 1
+	};
+	region.imageExtent = {
+		.width = width,
+		.height = height,
+		.depth = 1
+	};
+	vkCmdCopyBufferToImage( commandBuffer, buffer, pTex->m_vkImage, VK_IMAGE_LAYOUT_GENERAL, 1, &region );
+
+	std::vector<CVulkanTexture *> refs;
+	refs.push_back( pTex );
+
+	submit_command_buffer( handle, refs );
+
+	VulkanTexture_t texid = ++g_nMaxVulkanTexHandle;
+	g_mapVulkanTextures[ texid ] = pTex;
+
+	pTex->handle = texid;
+
+	VulkanWlrTexture_t *wlrTex = new VulkanWlrTexture_t();
+	wlr_texture_init( &wlrTex->base, &texture_impl, width, height );
+	wlrTex->tex = texid;
+
+	vkFreeMemory( device, bufferMemory, nullptr );
+	vkDestroyBuffer( device, buffer, nullptr );
+
+	return &wlrTex->base;
 }
 
 static bool renderer_init_wl_display( struct wlr_renderer *renderer,
