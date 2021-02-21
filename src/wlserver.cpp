@@ -1,6 +1,7 @@
 #define _GNU_SOURCE 1
 
 #include <assert.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,6 +26,7 @@ extern "C" {
 #include <wlr/backend/libinput.h>
 #include <wlr/backend/noop.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_drm.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_touch.h>
@@ -443,7 +445,7 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 
 	wl_signal_add( &wlserver.wlr.multi_backend->events.new_input, &new_input_listener );
 
-	wlserver.wlr.headless_backend = wlr_headless_backend_create( wlserver.wl_display, NULL );
+	wlserver.wlr.headless_backend = wlr_headless_backend_create( wlserver.wl_display );
 	if ( wlserver.wlr.headless_backend == NULL )
 	{
 		return 1;
@@ -469,11 +471,13 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 		wlr_headless_add_input_device( wlserver.wlr.headless_backend, WLR_INPUT_DEVICE_KEYBOARD );
 	}
 
-	wlserver.wlr.renderer = wlr_backend_get_renderer( wlserver.wlr.multi_backend );
-
-	assert(wlserver.wlr.renderer);
-
+	wlserver.wlr.renderer = vulkan_renderer_create();
 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.wl_display);
+
+	// TODO: get DRM FD from VkPhysicalDevice
+	int drm_fd = open("/dev/dri/renderD128", O_RDWR | O_CLOEXEC);
+	wlr_drm_create(wlserver.wl_display, drm_fd);
+	close(drm_fd);
 
 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.wl_display, wlserver.wlr.renderer);
 	
