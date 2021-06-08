@@ -540,6 +540,7 @@ int wlserver_init(int argc, char **argv, bool bIsNested) {
 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.wl_display);
 
 	wlr_drm_create(wlserver.wl_display, wlserver.wlr.renderer);
+	wlr_linux_dmabuf_v1_create(wlserver.wl_display, wlserver.wlr.renderer);
 
 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.wl_display, wlserver.wlr.renderer);
 
